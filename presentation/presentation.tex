@@ -1,0 +1,1436 @@
+\documentclass{beamer}
+\usetheme{Boadilla}
+\usecolortheme[named=black]{structure}
+
+\usepackage{listings}
+\usepackage{color}
+\usepackage{times}
+\usepackage{tikz}
+\usetikzlibrary{arrows, shapes}
+\usetikzlibrary{positioning}
+
+\title{Introduction to Compiler Construction}
+\author{Fabian F\"ug}
+
+\begin{document}
+
+    %%https://tex.stackexchange.com/questions/6135/how-to-make-beamer-overlays-with-tikz-node
+    \tikzset{onslide/.code args={<#1>#2}{%
+    \only<#1>{\pgfkeysalso{#2}} % \pgfkeysalso doesn't change the path
+    }}
+
+    \begin{frame}
+        \titlepage
+    \end{frame}
+
+    \section{Introduction}
+    \begin{frame}
+        \frametitle{Compiler}
+        \tikzstyle{blackbox} = [rectangle, draw=black, text width = 3.37cm, minimum height=2.0cm, fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.7cm, auto, thick, >=latex']
+            \node (box) [blackbox] {};
+            
+            \node (exe) [right=of box] {Executable};
+            \node (text) [left=of box] {Text};
+
+            \draw[->] (text) -- (box);
+            \draw[->] (box) -- (exe);
+
+        \end{tikzpicture}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{Steps}
+
+        \tikzstyle{stepsnode} = [rectangle, draw=black, text centered, text width=3.75cm, fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.7cm, auto, thick]
+
+            \node (lexer) [stepsnode] {Lexer};
+            \node (parser) [stepsnode, below=of lexer] {Parser};
+            \node (sem) [stepsnode, below=of parser] {Semantic};
+            \node (ir) [stepsnode, below=of sem] {IR Generation};
+            \node (code) [stepsnode, below=of ir] {Code Generation};
+
+            \node (exe) [right=of code] {Executable};
+            \node (text) [left=of lexer] {Text};
+
+            \draw[->] (lexer) edge node[swap] {Tokens} (parser);
+            \draw[->] (parser) edge node[swap] {AST} (sem);
+            \draw[->] (sem) edge node[swap] {AST} (ir);
+            \draw[->] (ir) edge node[swap] {IR} (code);
+            
+            \draw[->] (text) -- (lexer);
+            \draw[->] (code) -- (exe);
+
+        \end{tikzpicture}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Lexer}
+
+        \tikzstyle{stepsnode} = [rectangle, draw=black, text centered, text width=3.75cm, fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.7cm, auto, thick]
+
+            \node (lexer) [stepsnode] {Lexer};
+
+            \node (tokens) [right=of lexer] {Tokens};
+            \node (text) [left=of lexer] {Text};
+
+            \draw[->] (text) -- (lexer);
+            \draw[->] (lexer) -- (tokens);
+
+        \end{tikzpicture}
+        \end{figure}
+
+        \begin{columns}
+            \column{0.5\textwidth}
+            \pause
+            \begin{lstlisting}[language=c]
+while(a < 10) {
+    a += 1;
+}
+            \end{lstlisting}
+            \column{0.5\textwidth}
+            \pause
+            \begin{figure}
+            \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, minimum height=0.7cm]
+            \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+    
+                \node (a) [Token] {T\_While};
+                \node (b) [Token, below=of a.south west, anchor=north west] {$($};
+                \node (c) [Token, right=of b] {T\_Ident};
+                \node (d) [Token, right=of c] {$<$};
+                \node (e) [Token, right=of d] {T\_Int};
+                \node (f) [Token, right=of e] {$)$};
+                \node (g) [Token, below=of b] {$\{$};
+                \node (h) [Token, below=of g.south west, anchor=north west] {T\_Ident};
+                \node (i) [Token, right=of h] {$+=$};
+                \node (j) [Token, right=of i] {T\_Int};
+                \node (k) [Token, right=of j] {$;$};
+                \node (l) [Token, below=of h.south west, anchor=north west] {$\}$};
+    
+            \end{tikzpicture}
+            \end{figure}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{Parser}
+
+        \tikzstyle{stepsnode} = [rectangle, draw=black, text centered, text width=3.75cm, fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.7cm, auto, thick]
+
+            \node (parser) [stepsnode] {Parser};
+
+            \node (ast) [right=of parser] {AST};
+            \node (tokens) [left=of parser] {Tokens};
+
+            \draw[->] (tokens) -- (parser);
+            \draw[->] (parser) -- (ast);
+
+        \end{tikzpicture}
+        \end{figure}
+
+        \begin{columns}
+            \column{0.5\textwidth}
+            \pause
+            \begin{figure}
+            \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, minimum height=0.7cm]
+            \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+    
+                \node (a) [Token] {T\_While};
+                \node (b) [Token, below=of a.south west, anchor=north west] {$($};
+                \node (c) [Token, right=of b] {T\_Ident};
+                \node (d) [Token, right=of c] {$<$};
+                \node (e) [Token, right=of d] {T\_Int};
+                \node (f) [Token, right=of e] {$)$};
+                \node (g) [Token, below=of b] {$\{$};
+                \node (h) [Token, below=of g.south west, anchor=north west] {T\_Ident};
+                \node (i) [Token, right=of h] {$+=$};
+                \node (j) [Token, right=of i] {T\_Int};
+                \node (k) [Token, right=of j] {$;$};
+                \node (l) [Token, below=of h.south west, anchor=north west] {$\}$};
+    
+            \end{tikzpicture}
+            \end{figure}
+            \column{0.5\textwidth}
+            \pause
+            \begin{figure}
+            \tikzstyle{AST} = [rectangle, draw=black, text centered, fill=orange, minimum height=0.7cm]
+            \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+    
+                \node (a) [AST] {While};
+                \node (b) [AST, below=of a, anchor=north west] {Binary};
+                \node (c) [AST, right=of b] {$<$};
+                \node (d) [AST, below=of b, anchor=north west] {Variable};
+                \node (e) [AST, right=of d] {$a$};
+                \node (f) [AST, below=of d.south west, anchor=north west] {Literal};
+                \node (g) [AST, right=of f] {$10$};
+                \node (h) [AST, below=2.6cm of a, anchor=north west] {Assign};
+                \node (i) [AST, right=of h] {$...$};
+    
+            \end{tikzpicture}
+            \end{figure}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{Semantic}
+
+        \tikzstyle{stepsnode} = [rectangle, draw=black, text centered, text width=3.75cm, fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.7cm, auto, thick]
+
+            \node (sem) [stepsnode] {Semantic};
+
+            \node (ast1) [right=of parser] {AST};
+            \node (ast2) [left=of parser] {AST};
+
+            \draw[->] (ast2) -- (sem);
+            \draw[->] (sem) -- (ast1);
+
+        \end{tikzpicture}
+        \end{figure}
+
+        \begin{columns}
+            \column{0.5\textwidth}
+            \pause
+            \begin{figure}
+            \tikzstyle{AST} = [rectangle, draw=black, text centered, fill=orange, minimum height=0.7cm]
+            \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+    
+                \node (a) [AST] {While};
+                \node (b) [AST, below=of a, anchor=north west] {Binary};
+                \node (c) [AST, right=of b] {$<$};
+                \node (d) [AST, below=of b, anchor=north west] {Variable};
+                \node (e) [AST, right=of d] {$a$};
+                \node (f) [AST, below=of d.south west, anchor=north west] {Literal};
+                \node (g) [AST, right=of f] {$10$};
+                \node (h) [AST, below=2.6cm of a, anchor=north west] {Assign};
+                \node (i) [AST, right=of h] {$...$};
+    
+            \end{tikzpicture}
+            \end{figure}
+        \column{0.5\textwidth}
+        \pause
+        \begin{figure}
+        \tikzstyle{AST} = [rectangle, draw=black, text centered, fill=orange, minimum height=0.7cm]
+        \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+
+            \node (a) [AST] {While};
+            \node (b) [AST, below=of a, anchor=north west] {Binary};
+            \node (c) [AST, right=of b] {$<$};
+            \node (s1) [AST, right=of c] {Bool};
+            \node (d) [AST, below=of b, anchor=north west] {Variable};
+            \node (e) [AST, right=of d] {$a$};
+            \node (s2) [AST, right=of e] {Int};
+            \node (f) [AST, below=of d.south west, anchor=north west] {Literal};
+            \node (g) [AST, right=of f] {$10$};
+            \node (s3) [AST, right=of g] {Int};
+            \node (h) [AST, below=2.6cm of a, anchor=north west] {Assign};
+            \node (i) [AST, right=of h] {$...$};
+
+        \end{tikzpicture}
+        \end{figure}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{IR Generation}
+
+        \tikzstyle{stepsnode} = [rectangle, draw=black, text centered, text width=3.75cm, fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.7cm, auto, thick]
+
+            \node (irgen) [stepsnode] {IR Generation};
+
+            \node (ir) [right=of parser] {IR};
+            \node (ast) [left=of parser] {AST};
+
+            \draw[->] (ast) -- (irgen);
+            \draw[->] (irgen) -- (ir);
+
+        \end{tikzpicture}
+        \end{figure}
+
+        \begin{columns}
+            \column{0.5\textwidth}
+            \pause
+            \begin{figure}
+            \tikzstyle{AST} = [rectangle, draw=black, text centered, fill=orange, minimum height=0.7cm]
+            \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+    
+                \node (a) [AST] {While};
+                \node (b) [AST, below=of a, anchor=north west] {Binary};
+                \node (c) [AST, right=of b] {$<$};
+                \node (s1) [AST, right=of c] {Bool};
+                \node (d) [AST, below=of b, anchor=north west] {Variable};
+                \node (e) [AST, right=of d] {$a$};
+                \node (s2) [AST, right=of e] {Int};
+                \node (f) [AST, below=of d.south west, anchor=north west] {Literal};
+                \node (g) [AST, right=of f] {$10$};
+                \node (s3) [AST, right=of g] {Int};
+                \node (h) [AST, below=2.6cm of a, anchor=north west] {Assign};
+                \node (i) [AST, right=of h] {$...$};
+    
+            \end{tikzpicture}
+            \end{figure}
+            \column{0.5\textwidth}
+            \pause
+            \begin{lstlisting}[]
+loop:
+    gte a, 10, end
+    add a, 1
+    jmp loop
+end:
+            \end{lstlisting}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Code Generation}
+
+        \tikzstyle{stepsnode} = [rectangle, draw=black, text centered, text width=3.75cm, fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.7cm, auto, thick]
+
+            \node (codegen) [stepsnode] {Code Generation};
+
+            \node (code) [right=of parser] {Executable};
+            \node (ir) [left=of parser] {IR};
+
+            \draw[->] (ir) -- (codegen);
+            \draw[->] (codegen) -- (code);
+
+        \end{tikzpicture}
+        \end{figure}
+
+        \begin{columns}
+            \column{0.5\textwidth}
+            \pause
+            \begin{lstlisting}[]
+loop:
+    gte a, 10, end
+    add a, 1
+    jmp loop
+end:
+            \end{lstlisting}
+            \column{0.5\textwidth}
+            \pause
+            \begin{lstlisting}[]
+.LBB0_1:
+    cmp dword ptr [rbp - 8], 10
+    jge .LBB0_3
+    mov eax, dword ptr [rbp - 8]
+    add eax, 1
+    mov dword ptr [rbp - 8], eax
+    jmp .LBB0_1
+.LBB0_3:
+            \end{lstlisting}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{Frontend/Backend}
+
+        \tikzstyle{stepsnode} = [rectangle, draw=black, text centered, text width=3.75cm, fill=orange]
+        \tikzstyle{frontend} = [stepsnode, fill=orange]
+        \tikzstyle{backend} = [stepsnode, fill=red]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.7cm, auto, thick]
+
+            \node (lexer) [frontend] {Lexer};
+            \node (parser) [frontend, below=of lexer] {Parser};
+            \node (sem) [frontend, below=of parser] {Semantic};
+            \node (ir) [frontend, below=of sem] {IR Generation};
+            \node (code) [backend, below=of ir] {Code Generation};
+
+            \node (exe) [right=of code] {Executable};
+            \node (text) [left=of lexer] {Text};
+
+            \draw[->] (lexer) edge node[swap] {Tokens} (parser);
+            \draw[->] (parser) edge node[swap] {AST} (sem);
+            \draw[->] (sem) edge node[swap] {AST} (ir);
+            \draw[->] (ir) edge node[swap] {IR} (code);
+            
+            \draw[->] (text) -- (lexer);
+            \draw[->] (code) -- (exe);
+
+        \end{tikzpicture}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{Interpreter}
+
+        \tikzstyle{stepsnode} = [rectangle, draw=black, text centered, text width=3.75cm, fill=orange]
+        \tikzstyle{frontend} = [stepsnode, fill=orange]
+        \tikzstyle{backend} = [stepsnode, fill=red]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.7cm, auto, thick]
+
+            \node (lexer) [frontend] {Lexer};
+            \node (parser) [frontend, below=of lexer] {Parser};
+            \node (ir) [frontend, below=of parser] {Interpreter};
+
+            \node (text) [left=of lexer] {Text};
+
+            \draw[->] (lexer) edge node[swap] {Tokens} (parser);
+            \draw[->] (parser) edge node[swap] {AST} (ir);
+            
+            \draw[->] (text) -- (lexer);
+
+        \end{tikzpicture}
+        \end{figure}
+    \end{frame}
+
+    \definecolor{deepred}{rgb}{0.7,0,0}
+    \definecolor{deepgreen}{rgb}{0,0.5,0}
+
+    \lstset{
+        language=Python,
+        keywordstyle=\color{deepred},
+        otherkeywords={self, let},
+        stringstyle=\color{deepgreen},
+        frame=tb,
+        xleftmargin=.2\textwidth, xrightmargin=.2\textwidth
+    }
+    
+    \begin{frame}[fragile]
+        \frametitle{CPU lang}
+        \begin{lstlisting}[]
+let a = 0;
+let b = 1;
+let counter = 0;
+let fib = 10;
+while(counter < fib) {
+    let tmp = b;
+    b = a + b;
+    a = tmp;
+    counter = counter + 1;
+}
+print fib + ". fibonacci number: " + b;
+        \end{lstlisting}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{DEMO}
+        \centering
+        \textbf{https://github.com/Islidius/compiler-construction-presentation}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Lexer}
+
+        \tikzstyle{char} = [rectangle, draw=black, text centered, text width=0.4cm, minimum height=0.7cm]
+        \tikzstyle{token} = [rectangle, draw=black, text centered, minimum height=0.7cm, fill=orange, opacity=0]
+        \tikzstyle{high} = [fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+
+            \node (a1) [char, onslide=<2->{high}] {w};
+            \node (a2) [char, onslide=<3->{high}, right=of a1] {h};
+            \node (a3) [char, onslide=<4->{high}, right=of a2] {i};
+            \node (a4) [char, onslide=<5->{high}, right=of a3] {l};
+            \node (a5) [char, onslide=<6->{high}, right=of a4] {e};
+            \node (a6) [char, right=of a5] {~};
+
+            \node (a7) [char, right=of a6] {$($};
+            \node (a8) [char, right=of a7] {a};
+            \node (a9) [char, right=of a8] {$<$};
+            \node (a10) [char, right=of a9] {$1$};
+            \node (a11) [char, right=of a10] {$0$};
+            \node (a12) [char, right=of a11] {$)$};
+
+            \node (while) [token, , onslide=<7->{opacity=1}, text width=3.55cm, below=of a1.south west, anchor=north west] {while};
+
+        \end{tikzpicture}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Maximal Munch}
+        
+        \tikzstyle{char} = [rectangle, draw=black, text centered, text width=0.4cm, minimum height=0.7cm]
+        \tikzstyle{char2} = [rectangle, draw=black, text centered, text width=0.4cm, minimum height=0.7cm, opacity=0, onslide=<2->{opacity=1}]
+        \tikzstyle{token} = [rectangle, draw=black, text centered, minimum height=0.7cm, fill=orange]
+        \tikzstyle{high} = [fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+
+            \node (a1) [char, high] {f};
+            \node (a2) [char, high, right=of a1] {o};
+            \node (a3) [char, high, right=of a2] {r};
+            \node (a4) [char, right=of a3] {~};
+            \node (a5) [char, right=of a4] {~};
+            \node (a6) [char, right=of a5] {~};
+            \node (a7) [char, right=of a6] {~};
+            \node (a8) [char, right=of a7] {~};
+
+            \node (for) [token, text width=2.0cm, below=of a1.south west, anchor=north west] {for};
+
+            \node (b1) [char2, onslide=<3->{high}, below=of for.south west, anchor=north west] {f};
+            \node (b2) [char2, onslide=<4->{high}, right=of b1] {o};
+            \node (b3) [char2, onslide=<5->{high}, right=of b2] {r};
+            \node (b4) [char2, right=of b3] {t};
+            \node (b5) [char2, right=of b4] {r};
+            \node (b6) [char2, right=of b5] {e};
+            \node (b7) [char2, right=of b6] {s};
+            \node (b8) [char2, right=of b7] {s};
+
+            \node (for) [token, opacity=0, onslide=<6->{opacity=1}, text width=2.0cm, below=of b1.south west, anchor=north west] {for};
+
+        \end{tikzpicture}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Problems}
+        
+        \tikzstyle{char} = [rectangle, draw=black, text centered, text width=0.4cm, minimum height=0.7cm]
+        \tikzstyle{token} = [rectangle, draw=black, text centered, text width=0.4cm, minimum height=0.7cm, fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+
+            \node (a1) [char] {A};
+            \node (a2) [char, right=of a1] {$<$};
+            \node (a3) [char, right=of a2] {B};
+            \node (a4) [char, right=of a3] {$<$};
+            \node (a5) [char, right=of a4] {S};
+            \node (a6) [char, right=of a5] {$>$};
+            \node (a7) [char, right=of a6] {~};
+            \node (a8) [char, right=of a7] {$>$};
+
+            \node (c1) [token, below=of a1.south west, anchor=north west] {i};
+            \node (c2) [token, right=of c1] {$<$};
+            \node (c3) [token, right=of c2] {i};
+            \node (c4) [token, right=of c3] {$<$};
+            \node (c5) [token, right=of c4] {i};
+            \node (c6) [token, right=of c5] {$>$};
+            \node (c8) [token, below=of a8] {$>$};
+
+            \node (b1) [char, below=of c1.south west, anchor=north west] {A};
+            \node (b2) [char, right=of b1] {$<$};
+            \node (b3) [char, right=of b2] {B};
+            \node (b4) [char, right=of b3] {$<$};
+            \node (b5) [char, right=of b4] {S};
+            \node (b6) [char, right=of b5] {$>$};
+            \node (b7) [char, right=of b6] {$>$};
+            \node (b8) [char, right=of b7] {~};
+
+            \node (d1) [token, below=of b1.south west, anchor=north west] {i};
+            \node (d2) [token, right=of d1] {$<$};
+            \node (d3) [token, right=of d2] {i};
+            \node (d4) [token, right=of d3] {$<$};
+            \node (d5) [token, right=of d4] {i};
+            \node (d6) [token, right=of d5, text width=1.2cm] {$>>$};
+
+        \end{tikzpicture}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{CPU Tokens}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{lstlisting}[]
+let a = 0;
+let b = 1;
+let counter = 0;
+let fib = 10;
+while(counter < fib) {
+    let tmp = b;
+    b = a + b;
+    a = tmp;
+    counter = counter + 1;
+}
+print "fibonacci: " + b;
+        \end{lstlisting}
+        \column{0.5\textwidth}
+        \begin{figure}
+            \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, minimum height=0.7cm, opacity=0, onslide=<2->{opacity=1}]
+            \tikzstyle{Token2} = [rectangle, draw=black, text centered, fill=orange, minimum height=0.7cm, opacity=0, onslide=<3->{opacity=1}]
+            \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+    
+                \node (a) [Token] {T\_While};
+                \node (b) [Token, right=of a] {T\_If};
+
+                \node (c) [Token, below=of a.south west, anchor=north west] {T\_Let};
+                \node (d) [Token, right=of c] {T\_Print};
+
+                \node (e) [Token, below=of c.south west, anchor=north west] {T\_Ident};
+
+                \node (f) [Token, below=of e.south west, anchor=north west] {T\_Number};
+                \node (g) [Token, right=of f] {T\_String};
+
+                \node (h) [Token2, below=of f.south west, anchor=north west] {$($};
+                \node (i) [Token2, right=of h] {$)$};
+                \node (j) [Token2, right=of i] {$\{$};
+                \node (k) [Token2, right=of j] {$\}$};
+                \node (l) [Token2, right=of k] {$=$};
+                \node (m) [Token2, right=of l] {$;$};
+                \node (n) [Token2, right=of m] {$"$};
+
+                \node (o) [Token2, below=of h.south west, anchor=north west] {$+$};
+                \node (p) [Token2, right=of o] {$-$};
+                \node (q) [Token2, right=of p] {$*$};
+                \node (r) [Token2, right=of q] {$/$};
+
+                \node (s) [Token2, below=of o.south west, anchor=north west] {$==$};
+                \node (t) [Token2, right=of s] {$<$};
+                \node (u) [Token2, right=of t] {$>$};
+                \node (v) [Token2, right=of u] {$<=$};
+            \end{tikzpicture}
+            \end{figure}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{Handrolled Lexer}
+        \tikzstyle{char} = [rectangle, draw=black, text centered, text width=0.4cm, minimum height=0.7cm]
+        \tikzstyle{token} = [rectangle, draw=black, text centered, minimum height=0.7cm, fill=orange, opacity=0]
+        \tikzstyle{high} = [fill=orange]
+        \begin{figure}
+        \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+
+            \node (a1) [char, onslide=<2->{high}] {w};
+            \node (a2) [char, onslide=<3->{high}, right=of a1] {h};
+            \node (a3) [char, onslide=<4->{high}, right=of a2] {i};
+            \node (a4) [char, onslide=<5->{high}, right=of a3] {l};
+            \node (a5) [char, onslide=<6->{high}, right=of a4] {e};
+            \node (a6) [char, onslide=<7>{high}, right=of a5] {~};
+
+            \node (a7) [char, right=of a6] {$($};
+            \node (a8) [char, right=of a7] {a};
+            \node (a9) [char, right=of a8] {$<$};
+            \node (a10) [char, right=of a9] {$1$};
+            \node (a11) [char, right=of a10] {$0$};
+            \node (a12) [char, right=of a11] {$)$};
+
+            \node (while) [token, onslide=<8->{opacity=1}, text width=3.55cm, below=of a1.south west, anchor=north west] {while};
+
+        \end{tikzpicture}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Handrolled Lexer}
+        \begin{figure}
+            \begin{lstlisting}[language=Python]
+class Kind(Enum):
+    NUMBER = 1
+    STRING = 2
+    TRUE = 3
+    FALSE = 4
+    ...
+            \end{lstlisting}
+            \centering
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \begin{figure}
+        \centering
+        \begin{lstlisting}[language=Python]
+class Token(object):
+    def __init__(self, kind, line, value):
+        self.kind = kind
+        self.value = value
+        self.line = line
+        \end{lstlisting}
+        \end{figure}
+    \end{frame}
+
+    
+    \begin{frame}[fragile]
+        \begin{lstlisting}[language=Python]
+def lexTokens(self):
+    while(self.has()):
+        self.start = self.index
+        self.lexToken()
+    
+    self.addToken(Kind.EOF)
+    return self.tokens
+        \end{lstlisting}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \begin{lstlisting}[language=Python]
+def lexToken(self):
+    char = self.next()
+    if(char in " \r\t"):
+        pass
+    elif(char == "\n"):
+        self.line += 1
+    \end{lstlisting}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \begin{lstlisting}[language=Python]
+    elif(char in self.digits):
+        self.lexNumber()
+    \end{lstlisting}
+    \begin{lstlisting}[language=Python]
+def lexNumber(self):
+    while(self.peek() in self.digits):
+        self.next()
+
+    self.addToken(
+        Kind.NUMBER,
+        int(self.getRange())
+    )
+    \end{lstlisting}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \begin{lstlisting}[language=Python]
+elif(char in self.alphas):
+    self.lexIdentifier()
+    \end{lstlisting}
+    \begin{lstlisting}[language=Python]
+def lexIdentifier(self):
+    while(self.peek() in self.digits
+        or self.peek() in self.alphas):
+        self.next()
+
+    value = self.getRange()
+
+    if(value in self.keywords):
+        self.addToken(self.keywords[value])
+    else:
+        self.addToken(Kind.IDENT, value)
+    \end{lstlisting}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \begin{lstlisting}[language=Python]
+elif(char == "+"):
+    self.addToken(Kind.PLUS)
+    \end{lstlisting}
+    \begin{lstlisting}[language=Python]
+elif(char == "="):
+    if(self.peek() == "="):
+        self.next()
+        self.addToken(Kind.CMPEQ)
+    else:
+        self.addToken(Kind.EQUALS)
+    \end{lstlisting}
+    \end{frame}
+
+    \begin{frame}
+        \frametitle{Parser}
+        \begin{figure}
+        \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=0.3cm, minimum height=0.7cm]
+        \tikzstyle{TokenInt} = [rectangle, draw=black, text centered, fill=orange, text width=1.3cm, minimum height=0.7cm]
+        \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+            \node (a1) [TokenInt] {int};
+            \node (a2) [Token, right=of a1] {$+$};
+            \node (a3) [Token, right=of a2] {$($};
+            \node (a4) [TokenInt, right=of a3] {int};
+            \node (a5) [Token, right=of a4] {$+$};
+            \node (a6) [TokenInt, right=of a5] {int};
+            \node (a7) [Token, right=of a6] {$)$};
+        \end{tikzpicture}
+        \end{figure}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Grammar}
+        \begin{verbatim}
+            S = S "+" S
+            S = "(" S ")"
+            S = "int"
+        \end{verbatim}
+
+        \begin{verbatim}
+            N = D | N D
+            D = "0" | "1" | "2" | "3"
+
+            N = D D*
+        \end{verbatim}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Grammar}
+        \begin{figure}
+        \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=0.3cm, minimum height=0.7cm]
+        \tikzstyle{TokenInt} = [rectangle, draw=black, text centered, fill=orange, text width=1.3cm, minimum height=0.7cm]
+        \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+            \node (a1) [TokenInt] {int};
+            \node (a2) [Token, right=of a1] {$+$};
+            \node (a3) [Token, right=of a2] {$($};
+            \node (a4) [TokenInt, right=of a3] {int};
+            \node (a5) [Token, right=of a4] {$+$};
+            \node (a6) [TokenInt, right=of a5] {int};
+            \node (a7) [Token, right=of a6] {$)$};
+        \end{tikzpicture}
+        \end{figure}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{verbatim}
+    S = S "+" S
+    S = "(" S ")"
+    S = "int"
+        \end{verbatim}
+        \column{0.5\textwidth}
+        \begin{figure}
+        \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=1.0cm, minimum height=0.7cm, opacity=0]
+        \tikzstyle{Show} = [opacity=1]
+        \begin{tikzpicture}[node distance=0.2cm, auto, thick]
+            \node (a1) [Token, onslide=<2->{Show}] {S};
+            \node (a2) [Token, onslide=<3->{Show}, below=of a1] {S + S};
+            \node (a3) [Token, onslide=<4->{Show}, below left=0.2cm and 0.1cm of a2.south west, anchor=north] {int};
+            \node (a4) [Token, onslide=<5->{Show}, below right=0.2cm and 0.1cm of a2.south east, anchor=north] {$($S$)$};
+            \node (a5) [Token, onslide=<6->{Show}, below=of a4] {S + S};
+            \node (a6) [Token, onslide=<7->{Show}, below left=0.2cm and 0.1cm of a5.south west, anchor=north] {int};
+            \node (a7) [Token, onslide=<8->{Show}, below right=0.2cm and 0.1cm of a5.south east, anchor=north] {int};
+
+            \draw<3-> [->] (a1) -- (a2);
+            \draw<4-> [->] (a2) -- (a3);
+            \draw<5-> [->] (a2) -- (a4);
+            \draw<6-> [->] (a4) -- (a5);
+            \draw<7-> [->] (a5) -- (a6);
+            \draw<8-> [->] (a5) -- (a7);
+
+        \end{tikzpicture}
+        \end{figure}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Grammar - Backtracking?}
+        \begin{figure}
+        \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=0.3cm, minimum height=0.7cm]
+        \tikzstyle{TokenInt} = [rectangle, draw=black, text centered, fill=orange, text width=1.3cm, minimum height=0.7cm]
+        \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+            \node (a1) [TokenInt] {int};
+            \node (a2) [Token, right=of a1] {$+$};
+            \node (a3) [Token, right=of a2] {$($};
+            \node (a4) [TokenInt, right=of a3] {int};
+            \node (a5) [Token, right=of a4] {$+$};
+            \node (a6) [TokenInt, right=of a5] {int};
+            \node (a7) [Token, right=of a6] {$)$};
+        \end{tikzpicture}
+        \end{figure}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{verbatim}
+    S = S "+" S
+    S = "(" S ")"
+    S = "int"
+        \end{verbatim}
+        \column{0.5\textwidth}
+        \begin{figure}
+        \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=1.0cm, minimum height=0.7cm]
+        \begin{tikzpicture}[node distance=0.2cm, auto, thick]
+            \node (a1) [Token] {S};
+            \node (a2) [Token, below=of a1] {S + S};
+            \node (a3) [Token, below left=0.2cm and 0.1cm of a2.south west, anchor=north] {S + S};
+
+            \draw[->] (a1) -- (a2);
+            \draw[->] (a2) -- (a3);
+        \end{tikzpicture}
+        \end{figure}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Grammar - Lookahead}
+        \begin{figure}
+        \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=0.3cm, minimum height=0.7cm]
+        \tikzstyle{TokenInt} = [rectangle, draw=black, text centered, fill=orange, text width=1.3cm, minimum height=0.7cm]
+        \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+            \node (a1) [TokenInt, onslide=<2->{fill=red}] {int};
+            \node (a2) [Token, right=of a1] {$+$};
+            \node (a3) [Token, right=of a2] {$($};
+            \node (a4) [TokenInt, right=of a3] {int};
+            \node (a5) [Token, right=of a4] {$+$};
+            \node (a6) [TokenInt, right=of a5] {int};
+            \node (a7) [Token, right=of a6] {$)$};
+        \end{tikzpicture}
+        \end{figure}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{verbatim}
+    S = S "+" S
+    S = "(" S ")"
+    S = "int"
+        \end{verbatim}
+        \column{0.5\textwidth}
+        \begin{figure}
+        \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=1.0cm, minimum height=0.7cm]
+        \begin{tikzpicture}[node distance=0.2cm, auto, thick]
+            \node (a1) [Token] {S};
+            \node (a2) [Token, below=of a1, opacity=0, onslide=<3->{opacity=1}] {int};
+
+            \draw<3-> [->] (a1) -- (a2);
+        \end{tikzpicture}
+        \end{figure}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Grammar - Lookahead}
+        \begin{verbatim}
+            S = S "+" S
+            S = "(" S ")"
+            S = "int"
+        \end{verbatim}
+        \pause
+        \begin{verbatim}
+            S = E ("+" S)?
+            E = "(" S ")" | "int"
+        \end{verbatim}
+        \pause
+        \begin{verbatim}
+            S = E ("+" E)*
+            E = "(" S ")" | "int"
+        \end{verbatim}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Grammar - Lookahead}
+        \begin{figure}
+        \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=0.3cm, minimum height=0.7cm]
+        \tikzstyle{TokenInt} = [rectangle, draw=black, text centered, fill=orange, text width=1.3cm, minimum height=0.7cm]
+        \tikzstyle{High} = [fill=red]
+        \tikzstyle{Remove} = [opacity=0]
+        \begin{tikzpicture}[node distance=0.1cm, auto, thick]
+            \node (a1) [TokenInt, onslide=<2->{High}, onslide=<5->{Remove}] {int};
+            \node (a2) [Token, onslide=<6->{High}, onslide=<7->{Remove}, right=of a1] {$+$};
+            \node (a3) [Token, right=of a2] {$($};
+            \node (a4) [TokenInt, right=of a3] {int};
+            \node (a5) [Token, right=of a4] {$)$};
+            \node (a6) [Token, right=of a5] {$+$};
+            \node (a7) [TokenInt, right=of a6] {int};
+        \end{tikzpicture}
+        \end{figure}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{verbatim}
+    S = E ("+" S)?
+    E = "(" S ")" | "int"
+        \end{verbatim}
+        \column{0.5\textwidth}
+        \begin{figure}
+        \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=1.0cm, minimum height=0.7cm, opacity=0]
+        \tikzstyle{Show} = [opacity=1]
+        \begin{tikzpicture}[node distance=0.2cm, auto, thick]
+            \node (a1) [Token, Show] {S};
+            \node (a2) [Token, onslide=<3->{Show}, below=of a1] {E + S};
+            \node (a3) [Token, onslide=<4->{Show}, below left=0.2cm and 0.1cm of a2.south west, anchor=north] {int};
+            \node (a4) [Token, onslide=<7->{Show}, below right=0.2cm and 0.1cm of a2.south east, anchor=north] {E + S};
+            \node (a5) [Token, onslide=<7->{Show}, below left=0.2cm and 0.1cm of a4.south west, anchor=north] {$($ S $)$};
+            \node (a6) [Token, onslide=<7->{Show}, below right=0.2cm and 0.1cm of a4.south east, anchor=north] {E + S};
+            \node (a7) [Token, onslide=<7->{Show}, below=of a5] {int};
+            \node (a8) [Token, onslide=<7->{Show}, below=of a6] {int};
+
+            \draw<3-> [->] (a1) -- (a2);
+            \draw<4-> [->] (a2) -- (a3);
+            \draw<7-> [->] (a2) -- (a4);
+            \draw<7-> [->] (a4) -- (a5);
+            \draw<7-> [->] (a4) -- (a6);
+            \draw<7-> [->] (a5) -- (a7);
+            \draw<7-> [->] (a6) -- (a8);
+
+        \end{tikzpicture}
+        \end{figure}
+        \end{columns}
+    \end{frame}
+
+
+    \begin{frame}[fragile]
+        \frametitle{CPU Grammar}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{lstlisting}[]
+let a = 0;
+let b = 1;
+let counter = 0;
+let fib = 10;
+while(counter < fib) {
+    let tmp = b;
+    b = a + b;
+    a = tmp;
+    counter = counter + 1;
+}
+print "fibonacci: " + b;
+        \end{lstlisting}
+        \column{0.5\textwidth}
+        \pause
+        \begin{verbatim}
+    program = stmt* "EOF"
+    stmt = let | 
+        while | 
+        if | 
+        print | 
+        exprstmt |
+        scope
+        \end{verbatim}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{CPU Grammar}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{lstlisting}[]
+let a = 0;
+let b;
+        \end{lstlisting}
+        \column{0.5\textwidth}
+        \pause
+        \begin{verbatim}
+    let = 
+        "LET"
+        "IDENT"
+        ("=" expr)?
+        ";"
+        \end{verbatim}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{CPU Grammar}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{lstlisting}[]
+while(a < b) {
+    let x = 1;
+}
+        \end{lstlisting}
+        \column{0.5\textwidth}
+        \pause
+        \begin{verbatim}
+    while = 
+        "WHILE"
+        "(" expr ")"
+        scope
+    
+    scope = 
+        "{"
+        stmt*
+        "}"
+        \end{verbatim}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{CPU Grammar}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{lstlisting}[]
+print "test: " + a;
+print c;
+print "test"
+        \end{lstlisting}
+        \column{0.5\textwidth}
+        \pause
+        \begin{verbatim}
+    print = 
+        "PRINT"
+        expr
+        ";"
+        \end{verbatim}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{CPU Grammar}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{lstlisting}[]
+-a + 1;
+a = 2;
+b * (c + d);
+        \end{lstlisting}
+        \column{0.5\textwidth}
+        \pause
+        \begin{verbatim}
+    exprstmt = 
+        expr
+        ";"
+    
+    expr = 
+        unary (op expr)?
+    unary = 
+        "-" unary |
+        primary
+    primary =
+        "NUMBER" |
+        "IDENT" | 
+        "STRING"
+        "(" expr ")"
+    op = "+" | "-" | ...
+        \end{verbatim}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Operator Precedence}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{lstlisting}[]
+1 * 2 + 3
+        \end{lstlisting}
+        \only<2->{\begin{figure}
+        \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=1.0cm, minimum height=0.7cm]
+        \begin{tikzpicture}[node distance=0.2cm, auto, thick]
+            \node (a1) [Token] {$*$};
+            \node (a2) [Token, below left=0.2cm and 0.1cm of a1.south west, anchor=north] {1};
+            \node (a3) [Token, below right=0.2cm and 0.1cm of a1.south east, anchor=north] {$+$};
+            \node (a4) [Token, below left=0.2cm and 0.1cm of a3.south west, anchor=north] {2};
+            \node (a5) [Token, below right=0.2cm and 0.1cm of a3.south east, anchor=north] {3};
+
+            \draw[->] (a1) -- (a2);
+            \draw[->] (a1) -- (a3);
+            \draw[->] (a3) -- (a4);
+            \draw[->] (a3) -- (a5);
+
+        \end{tikzpicture}
+        \end{figure}}
+        \column{0.5\textwidth}
+        \begin{verbatim}
+    exprstmt = 
+        expr
+        ";"
+    
+    expr = 
+        unary (op expr)?
+    unary = 
+        "-" unary |
+        primary
+    primary =
+        "NUMBER" |
+        "IDENT" | 
+        "STRING"
+        "(" expr ")"
+    op = "+" | "-" | ...
+        \end{verbatim}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Operator Precedence}
+        \begin{columns}
+        \column{0.5\textwidth}
+        \begin{verbatim}
+    exprstmt = 
+        expr
+        ";"
+    
+    expr = 
+        unary (op expr)?
+    unary = 
+        "-" unary |
+        primary
+    primary =
+        "NUMBER" |
+        "IDENT" | 
+        "STRING"
+        "(" expr ")"
+    op = "+" | "-" | ...
+                \end{verbatim}
+        \column{0.5\textwidth}
+        \pause
+        \begin{verbatim}
+    expr = 
+        mul ("*" expr)?
+    mul = 
+        unary ("*" mul)?
+    unary = 
+        "-" unary |
+        primary
+    primary =
+        "NUMBER" |
+        "IDENT" | 
+        "STRING"
+        "(" expr ")"
+        \end{verbatim}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+        \frametitle{Operator Precedence}
+        \begin{columns}
+        \column{0.4\textwidth}
+        \begin{verbatim}
+    *
+    /
+    %
+    -
+    +
+    <
+    >
+    <=
+    >=
+    ==
+    !=
+    =
+        \end{verbatim}
+        \column{0.6\textwidth}
+        \pause
+        \begin{verbatim}
+expr = eq
+eq = 
+    comp (("==" | "!=") eq)?
+comp = 
+    add (("<" | ">") comp)?
+add = 
+    mul (("+" | "-") add)?
+mul = 
+    unary (("*" | "/") mul)?
+unary = 
+    "-" unary |
+    primary
+primary =
+    "NUMBER" | "STRING" |
+    "IDENT" | 
+    "(" expr ")"
+        \end{verbatim}
+        \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \frametitle{Why?}
+    \begin{verbatim}
+        A = B C
+        A = B | C
+        A = B*
+        A = B?
+        A = "TEST"
+    \end{verbatim}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \frametitle{Why?}
+    \begin{columns}
+    \column{0.1\textwidth}
+    \begin{verbatim}
+    A = B C
+    \end{verbatim}
+    \column{0.9\textwidth}
+    \pause
+    \begin{lstlisting}[language=Python]
+def parseA(self):
+    b = self.parseB()
+    c = self.parseC()
+    return A(b, c)
+        \end{lstlisting}
+    \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \frametitle{Why?}
+    \begin{columns}
+    \column{0.1\textwidth}
+    \begin{verbatim}
+    A = B | C
+    \end{verbatim}
+    \column{0.9\textwidth}
+    \pause
+    \begin{lstlisting}[language=Python]
+def parseA(self):
+    tok = self.peek().kind
+    if(kind == Kind.B):
+        return self.parseB()
+    elif(kind == Kind.C):
+        return self.parseC()
+    raise Error
+        \end{lstlisting}
+    \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \frametitle{Why?}
+    \begin{columns}
+    \column{0.1\textwidth}
+    \begin{verbatim}
+    A = B*
+    \end{verbatim}
+    \column{0.9\textwidth}
+    \pause
+    \begin{lstlisting}[language=Python]
+def parseA(self):
+    while(self.peek().kind = Kind.B):
+        self.parseB()
+    return A()
+        \end{lstlisting}
+    \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \frametitle{Why?}
+    \begin{columns}
+    \column{0.1\textwidth}
+    \begin{verbatim}
+    A = B?
+    \end{verbatim}
+    \column{0.9\textwidth}
+    \pause
+    \begin{lstlisting}[language=Python]
+def parseA(self):
+    if(self.peek().kind = Kind.B):
+        self.parseB()
+    return A()
+        \end{lstlisting}
+    \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \frametitle{Why?}
+    \begin{columns}
+    \column{0.1\textwidth}
+    \begin{verbatim}
+    A = "TEST"
+    \end{verbatim}
+    \column{0.9\textwidth}
+    \pause
+    \begin{lstlisting}[language=Python]
+def parseA(self):
+    self.consume(Kind.TEST)
+    return A()
+        \end{lstlisting}
+    \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \begin{lstlisting}[language=Python]
+def parseEq(self):
+    expr = self.parseComp()
+
+    op = self.test(Kind.CMPEQ)
+    if(op):
+        right = self.parseEq()
+        expr = Binary(op, expr, right)
+
+    return expr
+    \end{lstlisting}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \begin{lstlisting}[language=Python]
+def parseLet(self):
+    self.consume(Kind.LET)
+    ident = self.consume(Kind.IDENT)
+    expr = None
+
+    if(self.test(Kind.EQUALS)):
+        expr = self.parseExpression()
+
+    self.consume(Kind.SEMICOLON)
+    return Declaration(ident, expr)
+    \end{lstlisting}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \frametitle{Interpreter}
+    \begin{lstlisting}[]
+1 * (-2 + 3)
+    \end{lstlisting}
+    \begin{figure}
+    \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=1.0cm, minimum height=0.7cm]
+    \begin{tikzpicture}[node distance=0.2cm, auto, thick]
+        \node (a1) [Token] {B($*$)};
+        \node (a2) [Token, below left=0.2cm and 0.1cm of a1.south west, anchor=north] {L(1)};
+        \node (a3) [Token, below right=0.2cm and 0.1cm of a1.south east, anchor=north] {B($+$)};
+        \node (a4) [Token, below left=0.2cm and 0.1cm of a3.south west, anchor=north] {U($-$)};
+        \node (a5) [Token, below right=0.2cm and 0.1cm of a3.south east, anchor=north] {L(3)};
+        \node (a6) [Token, below=of a4] {L(2)};
+
+        \draw[->] (a1) -- (a2);
+        \draw[->] (a1) -- (a3);
+        \draw[->] (a3) -- (a4);
+        \draw[->] (a3) -- (a5);
+        \draw[->] (a4) -- (a6);
+    \end{tikzpicture}
+    \end{figure}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \frametitle{Interpreter}
+    \begin{columns}
+    \column{0.5\textwidth}
+    \begin{figure}
+    \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=1.0cm, minimum height=0.7cm]
+    \begin{tikzpicture}[node distance=0.2cm, auto, thick]
+        \node (a1) [Token] {B($*$)};
+        \node (a2) [Token, below left=0.2cm and 0.1cm of a1.south west, anchor=north] {L(1)};
+        \node (a3) [Token, below right=0.2cm and 0.1cm of a1.south east, anchor=north] {B($+$)};
+        \node (a4) [Token, below left=0.2cm and 0.1cm of a3.south west, anchor=north] {U($-$)};
+        \node (a5) [Token, below right=0.2cm and 0.1cm of a3.south east, anchor=north] {L(3)};
+        \node (a6) [Token, below=of a4] {L(2)};
+
+        \draw[->] (a1) -- (a2);
+        \draw[->] (a1) -- (a3);
+        \draw[->] (a3) -- (a4);
+        \draw[->] (a3) -- (a5);
+        \draw[->] (a4) -- (a6);
+    \end{tikzpicture}
+    \end{figure}
+    \column{0.5\textwidth}
+    \pause
+    \begin{verbatim}
+eval(B(*)) = 
+    eval(L(1)) * 
+    eval(B(+))
+eval(L(1)) = 1
+eval(B(+)) = 
+    eval(U(-)) + 
+    eval(L(3))
+eval(U(-)) = - eval(L(2))
+eval(L(2)) = 2
+eval(L(3)) = 3
+    \end{verbatim}
+    \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \frametitle{Environment}
+    \begin{columns}
+    \column{0.5\textwidth}
+    \begin{lstlisting}[]
+let x = 1;
+let y = 2;
+    \end{lstlisting}
+    \column{0.5\textwidth}
+    \begin{figure}
+    \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=4.0cm, minimum height=0.7cm]
+    \begin{tikzpicture}[node distance=0.2cm, auto, thick]
+        \node (a1) [Token] {x = 1 \\ y = 2};
+    \end{tikzpicture}
+    \end{figure}
+    \end{columns}
+    \end{frame}
+
+    \begin{frame}[fragile]
+    \frametitle{Environment}
+    \begin{columns}
+    \column{0.5\textwidth}
+    \begin{lstlisting}[]
+let x = 1;
+let y = 2;
+{
+    let z = 3;
+}
+print z;
+    \end{lstlisting}
+    \column{0.5\textwidth}
+    \begin{figure}
+    \tikzstyle{Token} = [rectangle, draw=black, text centered, fill=orange, text width=4.0cm, minimum height=0.7cm]
+    \begin{tikzpicture}[node distance=0.3cm, auto, thick]
+        \node<1-> (a1) [Token] {x = 1 \\ y = 2};
+        \node<2-> (a2) [Token, below=of a1] {z = 3};
+        \draw<2-> [->] (a2) -- (a1);
+    \end{tikzpicture}
+    \end{figure}
+    \end{columns}
+    \end{frame}
+    
+\end{document}

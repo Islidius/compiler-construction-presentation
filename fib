@@ -1,0 +1,10 @@
+let a = 0;
+let b = 1;
+let counter = 1;
+while(counter < fib) {
+    counter = counter + 1;
+    let tmp = b;
+    b = a + b;
+    a = tmp;
+}
+print b;
